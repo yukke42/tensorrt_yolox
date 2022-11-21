@@ -14,6 +14,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <tensorrt_yolox/tensorrt_yolox.hpp>
+#include <string>
 
 #if(defined(_MSC_VER) or (defined(__GNUC__) and (7 <= __GNUC_MAJOR__)))
 #include <filesystem>
@@ -46,6 +47,17 @@ public:
       p.string() + "_detect" + ext
     );
 
+    const std::vector<cv::Scalar> label_colors = {
+      cv::Scalar(255, 255, 255),
+      cv::Scalar(30, 144, 255),
+      cv::Scalar(255, 30, 144),
+      cv::Scalar(144, 255, 30),
+      cv::Scalar(119, 11, 32),
+      cv::Scalar(32, 11, 119),
+      cv::Scalar(255, 192, 203),
+      cv::Scalar(255, 255, 255)
+    };
+
     auto trt_yolox = std::make_unique<tensorrt_yolox::TrtYoloX>(model_path, precision);
     auto image = cv::imread(image_path);
     tensorrt_yolox::ObjectArrays objects;
@@ -55,8 +67,19 @@ public:
       const auto top = object.y_offset;
       const auto right = std::clamp(left + object.width, 0, image.cols);
       const auto bottom = std::clamp(top + object.height, 0, image.rows);
+
+      const auto color = label_colors[object.type];
       cv::rectangle(
-        image, cv::Point(left, top), cv::Point(right, bottom), cv::Scalar(0, 0, 255), 3, 8, 0);
+        image, cv::Point(left, top), cv::Point(right, bottom), color, 2, 8, 0);
+      
+      std::ostringstream oss;
+      oss << std::fixed << std::setprecision(3) << object.score;
+      std::string score_str = oss.str();
+      const int font = cv::FONT_HERSHEY_SIMPLEX;
+      constexpr float font_size = 0.7;
+      int base_line = 0;
+      const auto text_size = cv::getTextSize(score_str, font, font_size, 1, &base_line);
+      cv::putText(image, score_str, cv::Point(left, top + text_size.height), font, font_size, color, 2, 8, 0);
     }
     if (!save_image) {
       cv::imshow("inference image", image);
